@@ -123,13 +123,13 @@ async function fetchWemixPrice() {
         inputs.wemix.value = price.toFixed(2);
 
         ui.status.classList.add("success");
-        ui.status.innerText = "Preço atualizado com sucesso";
+        ui.status.innerText = "Preço do wemix atualizado com sucesso";
 
     } catch {
         inputs.wemix.value = "";
 
         ui.status.classList.add("error");
-        ui.status.innerText = "Erro ao buscar preço (rate limit ou conexão)";
+        ui.status.innerText = "Erro ao buscar preço do wemix(rate limit ou conexão)";
     }
 
     ui.btn.classList.remove("loading");
