@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Calculadora do Mercado Regional de Legends of Ymir</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+   
+<div class="page-wrapper">
+<div class="container">
+    <!-- HEADER -->
+    <div class="header">
+        <h1>Calculadora do Mercado Regional de Legends of Ymir</h1>
+        <span>Vender por Diamante ou Wemix? Confira abaixo.</span>
+    </div>
+
+    <!-- CARD -->
+    <div class="card">
+
+        <label>
+            Preço do Diamante (1K em R$)
+            <input type="number" id="diamondPrice" value="65" step="0.1">
+        </label>
+
+        <label>
+            Preço do Wemix (R$)
+            <input type="number" id="wemixPrice" step="0.01">
+        </label>
+
+        <button class="secondary" id="btnWemix">
+            Atualizar preço do Wemix
+        </button>
+
+        <div id="status" class="status"></div>
+
+        <label>
+            Preço do Item em Wemix
+            <input type="number" id="itemWemix" step="1">
+        </label>
+
+        <label>
+            Preço do Item em Diamante
+            <input type="number" id="itemDiamond" step="1">
+        </label>
+
+        <button id="calcBtn">Calcular</button>
+
+        <div class="results-grid">
+            <div class="result" id="wemixResult"></div>
+            <div class="result" id="diamondResult"></div>
+        </div>
+
+    </div>
+</div>
+</div>
+
+<script>
+/* =================================
+   CONSTANTS
+   TAXA REGIONAL WEMIX: 18.49%
+   TAXA REGIONAL DIAMANTE: 23.49%
+   TAXA MERCADO NORMAL: 5%
+================================= */
+const TAXA_REGIONAL_MARKET_WEMIX = 0.1849;
+const TAXA_REGIONAL_MARKET_DIAMOND = 0.2349;
+const TAXA_NORMAL_MARKET_DIAMOND = 0.05;
+
+/* =================================
+   DOM HELPERS
+================================= */
+const $ = id => document.getElementById(id);
+
+/* INPUTS */
+const inputs = {
+    diamond: $("diamondPrice"),
+    wemix: $("wemixPrice"),
+    itemWemix: $("itemWemix"),
+    itemDiamond: $("itemDiamond")
+};
+
+/* UI ELEMENTS */
+const ui = {
+    status: $("status"),
+    btn: $("btnWemix"),
+    wemixResult: $("wemixResult"),
+    diamondResult: $("diamondResult")
+};
+
+/* =================================
+   FORMAT
+================================= */
+const formatBRL = v =>
+    v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+/* =================================
+   FETCH WEMIX PRICE
+================================= */
+async function fetchWemixPrice() {
+
+    ui.btn.classList.add("loading");
+    ui.btn.innerText = "Atualizando...";
+    ui.status.className = "status";
+    ui.status.innerText = "Buscando preço...";
+
+    try {
+        const controller = new AbortController();
+        setTimeout(() => controller.abort(), 8000);
+
+        const res = await fetch(
+            "https://api.coingecko.com/api/v3/simple/price?ids=wemix-token&vs_currencies=brl",
+            { signal: controller.signal }
+        );
+
+        if (!res.ok) throw new Error();
+
+        const data = await res.json();
+        const price = data["wemix-token"]?.brl;
+
+        if (!price) throw new Error();
+
+        inputs.wemix.value = price.toFixed(2);
+
+        ui.status.classList.add("success");
+        ui.status.innerText = "Preço atualizado com sucesso";
+
+    } catch {
+        inputs.wemix.value = "";
+
+        ui.status.classList.add("error");
+        ui.status.innerText = "Erro ao buscar preço (rate limit ou conexão)";
+    }
+
+    ui.btn.classList.remove("loading");
+    ui.btn.innerText = "Atualizar preço do Wemix";
+}
+
+/* =================================
+   CALCULATION
+================================= */
+function calculate() {
+
+    const diamondPrice = parseFloat(inputs.diamond.value);
+    const wemixPrice = parseFloat(inputs.wemix.value);
+    const itemWemix = parseFloat(inputs.itemWemix.value);
+    const itemDiamond = parseFloat(inputs.itemDiamond.value);
+
+    if ([diamondPrice, wemixPrice, itemWemix, itemDiamond].some(isNaN)) return;
+
+    /* WEMIX */
+    const brutoWemix = itemWemix * wemixPrice;
+    const taxaWemix = brutoWemix * TAXA_REGIONAL_MARKET_WEMIX;
+    const totalWemix = brutoWemix - taxaWemix;
+
+    /* DIAMOND (SEPARATED TAXES) */
+    const brutoDiamond = itemDiamond * (diamondPrice / 1000);
+
+    const taxaDiamond = brutoDiamond * TAXA_REGIONAL_MARKET_DIAMOND;
+    const parcial = brutoDiamond - taxaDiamond;
+
+    const taxaExtra = parcial * TAXA_NORMAL_MARKET_DIAMOND;
+
+    const totalDiamond = brutoDiamond - taxaDiamond - taxaExtra;
+
+    const wemixWin = totalWemix > totalDiamond;
+
+    /* RENDER WEMIX */
+    ui.wemixResult.className = "result " + (wemixWin ? "win" : "lose");
+
+    ui.wemixResult.innerHTML = `
+        <strong>Wemix</strong>
+        <div class="value ${wemixWin ? "win" : "lose"}">
+            ${formatBRL(totalWemix)}
+        </div>
+        <div class="small">
+            Bruto: ${formatBRL(brutoWemix)}<br>
+            Taxa mercado regional: (${(TAXA_REGIONAL_MARKET_WEMIX * 100).toFixed(2)}%):
+            -${formatBRL(taxaWemix)}
+        </div>
+    `;
+
+    /* RENDER DIAMOND */
+    ui.diamondResult.className = "result " + (!wemixWin ? "win" : "lose");
+
+    ui.diamondResult.innerHTML = `
+        <strong>Diamante</strong>
+        <div class="value ${!wemixWin ? "win" : "lose"}">
+            ${formatBRL(totalDiamond)}
+        </div>
+        <div class="small">
+            Bruto: ${formatBRL(brutoDiamond)}<br>
+            Taxa mercado regional: (${(TAXA_REGIONAL_MARKET_DIAMOND * 100).toFixed(2)}%):
+            -${formatBRL(taxaDiamond)}<br>
+            Taxa mercado: (${(TAXA_NORMAL_MARKET_DIAMOND * 100).toFixed(0)}%):
+            -${formatBRL(taxaExtra)}
+        </div>
+    `;
+}
+
+/* =================================
+   EVENTS
+================================= */
+$("btnWemix").addEventListener("click", fetchWemixPrice);
+$("calcBtn").addEventListener("click", calculate);
+
+document.querySelectorAll("input")
+    .forEach(i => i.addEventListener("input", calculate));
+
+/* AUTO LOAD */
+fetchWemixPrice();
+</script>
+
+</body>
+</html>
